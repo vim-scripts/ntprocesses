@@ -1,10 +1,10 @@
 " ntprocesses.vim
 " Author: Hari Krishna <hari_vim at yahoo dot com>
-" Last Change: 30-Dec-2003 @ 17:41
+" Last Change: 26-Feb-2004 @ 19:26
 " Created: 21-Jan-2003
-" Requires: Vim-6.2, multvals.vim(3.4), genutils.vim(1.10)
+" Requires: Vim-6.2, multvals.vim(3.5), genutils.vim(1.10)
 " Depends On: Align.vim(17), winmanager.vim
-" Version: 1.3.0
+" Version: 1.4.1
 " Licence: This program is free software; you can redistribute it and/or
 "          modify it under the terms of the GNU General Public License.
 "          See http://www.gnu.org/copyleft/gpl.txt 
@@ -67,15 +67,15 @@ endif
 if !exists("loaded_multvals")
   runtime plugin/multvals.vim
 endif
-if !exists("loaded_multvals") || loaded_multvals < 304
-  echomsg "ntprocesses: You do not have the latest version of multvals.vim"
+if !exists("loaded_multvals") || loaded_multvals < 305
+  echomsg "ntprocesses: You need a newer version of multvals.vim plugin"
   finish
 endif
 if !exists("loaded_genutils")
   runtime plugin/genutils.vim
 endif
 if !exists("loaded_genutils") || loaded_genutils < 110
-  echomsg "ntprocesses: You do not have the latest version of genutils.vim"
+  echomsg "ntprocesses: You need a newer version of genutils.vim plugin"
   finish
 endif
 let loaded_ntprocesses = 1
@@ -328,22 +328,22 @@ function! s:SelectFields()
     let response = input('Fields selected: ' . g:ntprocFields . "\n" .
 	  \ "Select action to perform (a:add,d:delete,q:quit): ")
     echo "\n"
-    if oldResponse != 'd' || response != 'a'
+    if oldResponse !=# 'd' || response !=# 'a'
       let selField = -1
     endif
-    if response == 'q'
+    if response ==# 'q'
       break
     endif
-    if response != 'd' && response != 'a'
+    if response !=# 'd' && response !=# 'a'
       echo "Invalid selection"
       continue
     endif
     let selField = MvPromptForElement2(
-	  \ (response == 'a') ? s:allFields : g:ntprocFields,
-	  \ (response == 'a') ? ',' : ' ', selField,
+	  \ (response ==# 'a') ? s:allFields : g:ntprocFields,
+	  \ (response ==# 'a') ? ',' : ' ', selField,
 	  \ "Select the field: ", -1, 0, 2)
     if selField != ''
-      if response == 'd'
+      if response ==# 'd'
 	let g:ntprocFields = MvRemoveElement(g:ntprocFields, ' ', selField)
       else
 	let g:ntprocFields = MvAddElement(g:ntprocFields, ' ', selField)
@@ -425,17 +425,14 @@ endfunction
 
 
 function! s:SetupBuf()
-  setlocal nobuflisted
+  call SetupScratchBuffer()
   setlocal nowrap
-  setlocal noreadonly
   setlocal ts=1
   setlocal bufhidden=hide
-  setlocal buftype=nofile
-  setlocal foldcolumn=0
   command! -buffer -nargs=0 NTP :NTProcesses
-  command! -buffer -nargs=? NTPsetHost :NtpSetHost
+  command! -buffer -nargs=? NTPsetHost :NtpSetHost <args>
   command! -buffer -nargs=0 NtpRefresh :call <SID>UpdateBuffer(1)
-  command! -buffer -nargs=0 NtpKill :call <SID>UpdateBuffer(1)
+  command! -buffer -nargs=0 NtpKill :call <SID>DoAction()
   nnoremap <silent> <buffer> K :NtpKill<CR>
   nnoremap <silent> <buffer> R :NtpRefresh<CR>
   nnoremap <silent> <buffer> q :NTProcesses<CR>
@@ -454,7 +451,7 @@ endfunction
 
 
 function! s:Quit()
-  if s:opMode != 'WinManager'
+  if s:opMode !=# 'WinManager'
     if NumberOfWindows() == 1
       redraw | echohl WarningMsg | echo "Can't quit the last window" |
 	    \ echohl NONE

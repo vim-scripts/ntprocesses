@@ -1,10 +1,10 @@
 " ntprocesses.vim
 " Author: Hari Krishna <hari_vim at yahoo dot com>
-" Last Change: 06-Oct-2003 @ 09:37
+" Last Change: 30-Dec-2003 @ 17:41
 " Created: 21-Jan-2003
 " Requires: Vim-6.2, multvals.vim(3.4), genutils.vim(1.10)
 " Depends On: Align.vim(17), winmanager.vim
-" Version: 1.2.7
+" Version: 1.3.0
 " Licence: This program is free software; you can redistribute it and/or
 "          modify it under the terms of the GNU General Public License.
 "          See http://www.gnu.org/copyleft/gpl.txt 
@@ -21,6 +21,10 @@
 "   - You can choose which fields that you want to see by using the
 "     NtpFields command. You can select the sort fields by pressing s
 "     consecutively and r for reversing the sort direction.
+"   - If you have permissions, you can view the process list in a remote m/c
+"     by using the NtpSetHost command. With no arguments, it prints the
+"     current remote host name. To switch back to the local m/c, use "." for
+"     the host name.
 "   - For the sake of speed, the list of processes is cached. To see the
 "     latest set of processes and their states at any time, refresh the window
 "     by pressing 'R'.
@@ -64,17 +68,21 @@ if !exists("loaded_multvals")
   runtime plugin/multvals.vim
 endif
 if !exists("loaded_multvals") || loaded_multvals < 304
-  echomsg "ntprocesses: You need to have multvals version 3.4 or higher"
+  echomsg "ntprocesses: You do not have the latest version of multvals.vim"
   finish
 endif
 if !exists("loaded_genutils")
   runtime plugin/genutils.vim
 endif
 if !exists("loaded_genutils") || loaded_genutils < 110
-  echomsg "ntprocesses: You need to have genutils version 1.10 or higher"
+  echomsg "ntprocesses: You do not have the latest version of genutils.vim"
   finish
 endif
 let loaded_ntprocesses = 1
+
+if ! OnMS()
+  finish
+endif
 
 " Make sure line-continuations won't cause any problem. This will be restored
 "   at the end
@@ -86,6 +94,7 @@ set cpo&vim
 nnoremap <script> <silent> <Plug>NTProcesses :silent call <SID>ListProcesses()<cr>
 command! -nargs=0 NTProcesses :call <SID>ListProcesses()
 command! -nargs=0 NtpFields :call <SID>SelectFields()
+command! -nargs=? NtpSetHost :call <SID>SetHost(<f-args>)
 
 let g:NTProcesses_title = "[NT Processes]"
 
@@ -196,7 +205,6 @@ function! s:UpdateBuffer(force)
     endif
 
     silent! $put =procList
-    silent! 1delete _
 
     let hdr = substitute(g:ntprocFields, ' ', "\t", 'g')
     let marker = substitute(hdr, '[^\t]', '-', 'g')
@@ -273,6 +281,8 @@ function! s:InitVBS()
   if s:vbscript == ''
     let s:vbscript = ExtractFuncListing(s:myScriptId.'_vbScript', 1, 1)
   endif
+  let s:vbscript = substitute(s:vbscript, "\n".'\s*strComputer = "[^'."\n".']*'.
+	\ "\n", "\n strComputer = \"".g:ntprocHostName."\"\n", '')
   let tempDir = substitute(tempname(), '[^/\\]\+$', '', '')
   if ! isdirectory(tempDir)
     call confirm('Invalid temp directory: ' . tempDir, 'OK', 1, 'Error')
@@ -300,11 +310,13 @@ endfunction
 
 function! s:SetHost(...)
   if a:0 == 0
-    echo "Current remote host: " . g:ntservHostName
+    echo "Current remote host: " . g:ntprocHostName
   else
     let g:ntprocHostName = a:1
     let s:tempFile = ''
-    call s:UpdateBuffer(1)
+    if bufnr('%') == s:myBufNum
+      call s:UpdateBuffer(1)
+    endif
   endif
 endfunction
 
@@ -421,9 +433,11 @@ function! s:SetupBuf()
   setlocal buftype=nofile
   setlocal foldcolumn=0
   command! -buffer -nargs=0 NTP :NTProcesses
-  command! -buffer -nargs=? NTPsetHost :call <SID>SetHost(<f-args>)
-  nnoremap <silent> <buffer> K :call <SID>DoAction()<CR>
-  nnoremap <silent> <buffer> R :call <SID>UpdateBuffer(1)<CR>
+  command! -buffer -nargs=? NTPsetHost :NtpSetHost
+  command! -buffer -nargs=0 NtpRefresh :call <SID>UpdateBuffer(1)
+  command! -buffer -nargs=0 NtpKill :call <SID>UpdateBuffer(1)
+  nnoremap <silent> <buffer> K :NtpKill<CR>
+  nnoremap <silent> <buffer> R :NtpRefresh<CR>
   nnoremap <silent> <buffer> q :NTProcesses<CR>
 
   " Invert these to mean close instead of open.
@@ -431,8 +445,10 @@ function! s:SetupBuf()
   nnoremap <buffer> <silent> <Plug>NTProcesses :call s:Quit()<CR>
   " Map the sort keys only if the QSort is available.
   if exists('*QSort')
-    nnoremap <silent> <buffer> s :call <SID>SortSelect(1)<CR>
-    nnoremap <silent> <buffer> r :call <SID>SortReverse()<CR>
+    command! -buffer -nargs=0 NtpSortSel :call <SID>SortSelect(1)
+    command! -buffer -nargs=0 NtpSortRev :call <SID>SortReverse()
+    nnoremap <silent> <buffer> s :NtpSortSel<CR>
+    nnoremap <silent> <buffer> r :NtpSortRev<CR>
   endif
 endfunction
 
